@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>숭숭 가계부</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Pretendard', -apple-system, sans-serif; background-color: #f8f9fa; color: #444; }
+        .app-container { max-width: 500px; margin: 0 auto; background: #fff; min-height: 100vh; padding-bottom: 60px; }
+
+        /* 헤더 & 네비게이션 */
+        header { position: sticky; top: 0; background: #fff; padding: 15px; border-bottom: 1px solid #eee; z-index: 100; text-align: center; display: flex; justify-content: space-between; align-items: center; }
+        .month-selector { border: none; font-size: 18px; font-weight: bold; color: #8e7d73; background: #fdfaf6; padding: 5px 10px; border-radius: 10px; }
+
+        /* 탭 버튼 */
+        .tab-menu { display: flex; background: #eee; margin: 15px; border-radius: 12px; padding: 4px; }
+        .tab-btn { flex: 1; padding: 10px; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; background: none; color: #888; transition: 0.3s; }
+        .tab-btn.active { background: #fff; color: #8e7d73; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+
+        /* 요약 카드 */
+        .summary-box { padding: 20px; background: linear-gradient(135deg, #e8f0fe 0%, #fdfaf6 100%); margin: 15px; border-radius: 20px; }
+        .balance { font-size: 26px; font-weight: 800; color: #5c7285; margin: 5px 0; }
+        
+        /* 검색창 스타일 */
+        .search-box { margin: 0 15px 15px; }
+        .search-box input { width: 100%; padding: 12px; border: 1px solid #eee; border-radius: 12px; font-size: 14px; outline: none; background: #fafafa; }
+
+        /* 차트 & 리스트 공통 */
+        .content-section { display: none; }
+        .content-section.active { display: block; }
+        .chart-card { margin: 0 15px 20px; padding: 15px; background: #fafafa; border-radius: 15px; border: 1px solid #f0f0f0; }
+        
+        /* 연간 차트 */
+        .year-chart { display: flex; align-items: flex-end; justify-content: space-between; height: 100px; margin-top: 10px; padding-bottom: 5px; border-bottom: 1px solid #eee; }
+        .year-bar { flex: 1; margin: 0 2px; background: #bae1ff; border-radius: 3px 3px 0 0; min-height: 2px; position: relative; }
+        .year-bar.current { background: #ffb3ba; }
+        
+        /* 입력 & 리스트 스타일 */
+        .input-section { padding: 0 15px; margin-bottom: 25px; }
+        input, .cat-btn { border-radius: 12px; border: 1px solid #eee; padding: 12px; font-size: 14px; outline: none; }
+        .btn-group { display: flex; gap: 8px; margin-bottom: 10px; }
+        .btn { flex: 1; padding: 12px; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; background: #f5f5f5; color: #999; }
+        .btn.active[data-type="expense"] { background: #ffb3ba; color: white; }
+        .btn.active[data-type="income"] { background: #bae1ff; color: white; }
+        .cat-btn-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 15px; }
+        .cat-btn.active { background: #d1ccca; color: white; }
+        .add-btn { width: 100%; padding: 16px; background: #ffffba; border: none; border-radius: 15px; font-weight: bold; color: #8e7d73; cursor: pointer; }
+
+        .history-list { padding: 0 15px; }
+        .history-item { display: flex; justify-content: space-between; align-items: center; padding: 15px; background: #fff; border-radius: 15px; margin-bottom: 10px; border: 1px solid #f0f0f0; }
+        .item-sub { font-size: 11px; color: #bbb; }
+        .del-btn { background: #fee2e2; color: #ef4444; border: none; width: 24px; height: 24px; border-radius: 6px; cursor: pointer; }
+        .minus { color: #ff8b94; font-weight: bold; }
+        .plus { color: #6eb5ff; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <header>
+        <button onclick="changeMonth(-1)" style="background:none; border:none; font-size:20px;">◀</button>
+        <div id="current-month-display" class="month-selector"></div>
+        <button onclick="changeMonth(1)" style="background:none; border:none; font-size:20px;">▶</button>
+    </header>
+
+    <div class="tab-menu">
+        <button class="tab-btn active" onclick="switchTab('monthly')">월별 가계부</button>
+        <button class="tab-btn" onclick="switchTab('all')">전체 기록 & 검색</button>
+    </div>
+
+    <div id="monthly-section" class="content-section active">
+        <div class="summary-box">
+            <div style="font-size:13px; color:#7b8fa1;">이달의 잔액</div>
+            <div class="balance" id="total-balance">0원</div>
+            <div style="display:flex; justify-content:space-between; margin-top:10px; font-size:12px;">
+                <span>수입: <strong id="total-income" style="color:#6eb5ff">0</strong></span>
+                <span>지출: <strong id="total-expense" style="color:#ff8b94">0</strong></span>
+            </div>
+        </div>
+
+        <div class="chart-card">
+            <div style="font-size:13px; font-weight:bold; margin-bottom:10px; color:#8e7d73;">최근 1년 지출 추이</div>
+            <div class="year-chart" id="year-chart"></div>
+        </div>
+
+        <div class="input-section">
+            <input type="date" id="date-input" style="width:100%; margin-bottom:10px;">
+            <div class="btn-group" id="type-btns">
+                <button class="btn active" data-type="expense">지출</button>
+                <button class="btn" data-type="income">수입</button>
+            </div>
+            <div class="cat-btn-grid" id="category-btns"></div>
+            <input type="number" id="amount-input" inputmode="numeric" placeholder="금액" style="width:100%; margin-bottom:10px;">
+            <input type="text" id="memo-input" placeholder="내용" style="width:100%; margin-bottom:10px;">
+            <button class="add-btn" id="add-btn">기록하기</button>
+        </div>
+
+        <div class="history-list" id="monthly-history"></div>
+    </div>
+
+    <div id="all-section" class="content-section">
+        <div class="search-box">
+            <input type="text" id="search-input" placeholder="🔍 메모나 카테고리로 검색해 보세요" onkeyup="updateAllList()">
+        </div>
+        <div class="history-list" id="all-history">
+            </div>
+    </div>
+</div>
+
+<script>
+    const categories = { expense: ['식비', '교통', '쇼핑', '의료', '취미', '기타'], income: ['급여', '용돈', '기타'] };
+    let transactions = JSON.parse(localStorage.getItem('pastel_final_db')) || [];
+    let currentViewMonth = new Date().toISOString().slice(0, 7);
+    let currentType = 'expense';
+    let currentCat = '식비';
+
+    // 탭 전환 함수
+    window.switchTab = (tab) => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
+        if(tab === 'monthly') {
+            document.querySelector('.tab-btn:nth-child(1)').classList.add('active');
+            document.getElementById('monthly-section').classList.add('active');
+        } else {
+            document.querySelector('.tab-btn:nth-child(2)').classList.add('active');
+            document.getElementById('all-section').classList.add('active');
+            updateAllList();
+        }
+    };
+
+    // 카테고리 렌더링
+    const renderCategories = () => {
+        const container = document.getElementById('category-btns');
+        container.innerHTML = '';
+        categories[currentType].forEach(cat => {
+            const btn = document.createElement('button');
+            btn.className = `cat-btn ${cat === currentCat ? 'active' : ''}`;
+            btn.textContent = cat;
+            btn.onclick = () => { currentCat = cat; renderCategories(); };
+            container.appendChild(btn);
+        });
+    };
+
+    // UI 업데이트 (월별)
+    const updateMonthlyUI = () => {
+        document.getElementById('current-month-display').textContent = currentViewMonth;
+        const container = document.getElementById('monthly-history');
+        const yearChart = document.getElementById('year-chart');
+        container.innerHTML = '';
+        yearChart.innerHTML = '';
+
+        let inSum = 0, exSum = 0;
+        const yearStats = {};
+
+        transactions.forEach(t => {
+            const tMonth = t.date.slice(0, 7);
+            if (t.type === 'expense') yearStats[tMonth] = (yearStats[tMonth] || 0) + t.amount;
+            if (tMonth === currentViewMonth) {
+                if(t.type === 'income') inSum += t.amount; else exSum += t.amount;
+                renderItem(t, container);
+            }
+        });
+
+        document.getElementById('total-balance').textContent = (inSum - exSum).toLocaleString() + '원';
+        document.getElementById('total-income').textContent = inSum.toLocaleString() + '원';
+        document.getElementById('total-expense').textContent = exSum.toLocaleString() + '원';
+
+        // 연간 차트
+        let maxVal = Math.max(...Object.values(yearStats), 1);
+        for(let i=11; i>=0; i--) {
+            let d = new Date(currentViewMonth + "-01");
+            d.setMonth(d.getMonth() - i);
+            let mStr = d.toISOString().slice(0, 7);
+            let val = yearStats[mStr] || 0;
+            yearChart.innerHTML += `<div class="year-bar ${mStr===currentViewMonth?'current':''}" style="height:${(val/maxVal*100)||2}%"></div>`;
+        }
+        localStorage.setItem('pastel_final_db', JSON.stringify(transactions));
+    };
+
+    // 전체 리스트 & 검색 업데이트
+    window.updateAllList = () => {
+        const container = document.getElementById('all-history');
+        const keyword = document.getElementById('search-input').value.toLowerCase();
+        container.innerHTML = '';
+
+        const filtered = transactions.filter(t => 
+            t.memo.toLowerCase().includes(keyword) || t.category.toLowerCase().includes(keyword)
+        ).sort((a,b) => new Date(b.date) - new Date(a.date));
+
+        if(filtered.length === 0) {
+            container.innerHTML = `<div style="text-align:center; color:#ccc; margin-top:50px;">기록이 없어요 🧐</div>`;
+            return;
+        }
+
+        filtered.forEach(t => renderItem(t, container));
+    };
+
+    const renderItem = (t, container) => {
+        const div = document.createElement('div');
+        div.className = 'history-item';
+        div.innerHTML = `
+            <div style="display:flex; flex-direction:column; gap:2px;">
+                <span style="font-size:15px; font-weight:600;">${t.memo}</span>
+                <span class="item-sub">${t.date} · ${t.category}</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px;">
+                <span class="${t.type==='income'?'plus':'minus'}">${t.type==='income'?'+':'-'}${t.amount.toLocaleString()}</span>
+                <button class="del-btn" onclick="deleteItem(${t.id})">×</button>
+            </div>
+        `;
+        container.prepend(div);
+    };
+
+    window.changeMonth = (v) => {
+        let [y, m] = currentViewMonth.split('-').map(Number);
+        m += v; if(m>12){y++; m=1;} if(m<1){y--; m=12;}
+        currentViewMonth = `${y}-${String(m).padStart(2,'0')}`;
+        updateMonthlyUI();
+    };
+
+    window.deleteItem = (id) => {
+        if(confirm('이 기록을 삭제할까요?')) {
+            transactions = transactions.filter(t => t.id !== id);
+            updateMonthlyUI();
+            updateAllList();
+        }
+    };
+
+    document.querySelectorAll('#type-btns .btn').forEach(btn => {
+        btn.onclick = (e) => {
+            document.querySelectorAll('#type-btns .btn').forEach(b => b.classList.remove('active'));
+            e.target.classList.add('active');
+            currentType = e.target.dataset.type;
+            currentCat = categories[currentType][0];
+            renderCategories();
+        };
+    });
+
+    document.getElementById('add-btn').onclick = () => {
+        const amt = parseInt(document.getElementById('amount-input').value);
+        const memo = document.getElementById('memo-input').value.trim();
+        const date = document.getElementById('date-input').value;
+        if(!amt || !memo) return alert('내용을 입력해주세요!');
+        transactions.push({ id: Date.now(), date, type: currentType, category: currentCat, amount: amt, memo });
+        document.getElementById('amount-input').value = '';
+        document.getElementById('memo-input').value = '';
+        updateMonthlyUI();
+        alert('기록되었습니다! ✨');
+    };
+
+    document.getElementById('date-input').value = new Date().toISOString().split('T')[0];
+    renderCategories();
+    updateMonthlyUI();
+</script>
+
+</body>
+</html>
